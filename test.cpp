@@ -17,10 +17,29 @@ vector<uint8_t> PseudoRandomBytes (int bytesCount) {
 class AES_CTR {
     private:
 
-    static const uint8_t aes_Sbox[16][16];
+    static const uint8_t sBox[16][16];
     static const uint8_t roundCon[10];
 
+    static uint8_t GMul(uint8_t a, uint8_t b) {
+        uint8_t p = 0;
+        for (int ctr=0; ctr < 8; ctr++) {
+            if ((b & 1) != 0) p ^= a;
+            bool hi_bit_set = (a & 0x80) != 0;
+            a <<= 1;
+            if (hi_bit_set) a ^= 0x1B;
+            b >>= 1;
+        } return p;
+    }
+
     public:
+
+    static vector<uint8_t> GetIV (vector<uint8_t> nonce, uint64_t counter) {
+        vector<uint8_t> counterBytes;
+        for (int i=0; i < 64; i=i+8)
+            counterBytes.insert(counterBytes.begin(), (counter >> i));
+        nonce.insert(nonce.end(), counterBytes.begin(), counterBytes.end());
+        return nonce;
+    }
 
     static void KeySchedule (vector<uint8_t> mainKey, vector<uint8_t> roundKeys[]) {
         roundKeys[0] = AddRoundKey(0, mainKey);
@@ -30,25 +49,69 @@ class AES_CTR {
 
     static vector<uint8_t> AddRoundKey (int round, vector<uint8_t> prevKey) {
         vector<uint8_t> rotWord = {prevKey[7], prevKey[11], prevKey[15], prevKey[3]};
-
-        for (int i=0; i < 4; i++) {
-            uint8_t row = rotWord[i] >> 4;
-            uint8_t col = rotWord[i] << 4; col = col >> 4;
-            rotWord[i] = aes_Sbox[row][col];
-        }
+        vector<uint8_t> subBytes = SubBytes(rotWord);
         vector<uint8_t> roundKey(16, 0);
-        roundKey[0] = prevKey[0] ^ rotWord[0] ^ roundCon[round];
+
+        roundKey[0] = prevKey[0] ^ subBytes[0] ^ roundCon[round];
         for (int i=1; i < 4; i++)
-            roundKey[i<<2] = prevKey[i<<2] ^ rotWord[i];
+            roundKey[i<<2] = prevKey[i<<2] ^ subBytes[i];
         for (int j=1; j < 4; j++)
             for (int i=j; i < 16; i+=4)
                 roundKey[i] = prevKey[i] ^ roundKey[i-1];
 
         return roundKey;
     }
+
+    static vector<uint8_t> GetCipherBlock (vector<uint8_t> mainKey, vector<uint8_t> blockIv) {
+        vector<uint8_t> state;
+        for (int i=0; i < blockIv.size(); i++)
+            state.push_back(mainKey[i] ^ blockIv[i]);
+
+        vector<uint8_t> roundKeys[10];
+        KeySchedule(mainKey, roundKeys);
+
+        for (int i=0; i < 9; i++) {
+            state = MixCols(ShiftRows(SubBytes(state)));
+            for (int j=0; j < state.size(); j++)
+                state[j] ^= roundKeys[i][j];
+        }
+        state = ShiftRows(SubBytes(state));
+        for (int j=0; j < state.size(); j++)
+            state[j] ^= roundKeys[9][j];
+        
+        return state;
+    }
+
+    static vector<uint8_t> SubBytes (vector<uint8_t> state) {
+        for (int i=0; i < state.size(); i++) {
+            uint8_t row = state[i] >> 4;
+            uint8_t col = state[i] << 4; col = col >> 4;
+            state[i] = sBox[row][col];
+        } return state;
+    }
+
+    static vector<uint8_t> ShiftRows (vector<uint8_t> state) {
+        state = {
+            state[0], state[1], state[2], state[3],
+            state[5], state[6], state[7], state[4],
+            state[10], state[11], state[8], state[9],
+            state[15], state[12], state[13], state[14]
+        };
+        return state;
+    }
+
+    static vector<uint8_t> MixCols (vector<uint8_t> state) {
+        vector<uint8_t> mixTable(16, 0);
+        for (int i=0; i < 4; i++) {
+            mixTable[i] = GMul(2, state[i]) ^ GMul(3, state[i+4]) ^ state[i+8] ^ state[i+12];
+            mixTable[i+4] = state[i] ^ GMul(2, state[i+4]) ^ GMul(3, state[i+8]) ^ state[i+12];
+            mixTable[i+8] = state[i] ^ state[i+4] ^ GMul(2, state[i+8]) ^ GMul(3, state[i+12]);
+            mixTable[i+12] = GMul(3, state[i]) ^ state[i+4] ^ state[i+8] ^ GMul(2, state[i+12]);
+        } return mixTable;
+    }
 };
 
-const uint8_t AES_CTR::aes_Sbox[16][16] = {
+const uint8_t AES_CTR::sBox[16][16] = {
     {0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76},
     {0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0},
     {0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15},
@@ -76,29 +139,39 @@ int main () {
     vector<uint8_t> nonce = PseudoRandomBytes(8);
     uint64_t counter = 0;
 
-    vector<uint8_t> counterBytes;
-    for (int i=0; i < 64; i=i+8)
-        counterBytes.insert(counterBytes.begin(), (counter >> i));
-    
-    // uint8_t coisao = (aes_Sbox[0][7] << 4);
-    // coisao = coisao >> 4;
-    // cout << bitset<8>(coisao) << endl;
-    // cout << hex << (int)coisao << endl;
+    // vector<uint8_t> roundKeys[10];
+    // AES_CTR::KeySchedule({
+    //     0x2b, 0x28, 0xab, 0x09,
+    //     0x7e, 0xae, 0xf7, 0xcf,
+    //     0x15, 0xd2, 0x15, 0x4f,
+    //     0x16, 0xa6, 0x88, 0x3c
+    // }, roundKeys);
 
-    vector<uint8_t> coisita[10];
-    AES_CTR::KeySchedule({
+    // for (int i=0; i < 16; i++)
+    //     cout << hex << (int)roundKeys[0][i]; cout << endl;
+    // for (int i=0; i < 16; i++)
+    //     cout << hex << (int)roundKeys[1][i]; cout << endl;
+    // for (int i=0; i < 16; i++)
+    //     cout << hex << (int)roundKeys[2][i]; cout << endl;
+    // for (int i=0; i < 16; i++)
+    //     cout << hex << (int)roundKeys[9][i]; cout << endl;
+
+    vector<uint8_t> cipherBlock = AES_CTR::GetCipherBlock({
         0x2b, 0x28, 0xab, 0x09,
         0x7e, 0xae, 0xf7, 0xcf,
         0x15, 0xd2, 0x15, 0x4f,
         0x16, 0xa6, 0x88, 0x3c
-    }, coisita);
+    }, {
+        0x32, 0x88, 0x31, 0xe0,
+        0x43, 0x5a, 0x31, 0x37,
+        0xf6, 0x30, 0x98, 0x07,
+        0xa8, 0x8d, 0xa2, 0x34
+    });
 
-    for (int i=0; i < 16; i++)
-        cout << hex << (int)coisita[0][i]; cout << endl;
-    for (int i=0; i < 16; i++)
-        cout << hex << (int)coisita[1][i]; cout << endl;
-    for (int i=0; i < 16; i++)
-        cout << hex << (int)coisita[2][i]; cout << endl;
-    for (int i=0; i < 16; i++)
-        cout << hex << (int)coisita[9][i]; cout << endl;
+    for (int j=0; j < 16; j+=4) {
+        for (int i=0; i < 4; i++) {
+            cout << hex << (int)cipherBlock[i+j];
+            cout << " ";
+        } cout << endl;
+    }
 }
