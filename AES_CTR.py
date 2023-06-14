@@ -1,6 +1,7 @@
 import math
 import secrets
-import GaloisField as GF
+import conversions as cvt
+import modarith as gf
 
 __sBox = [
     [0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76],
@@ -23,12 +24,10 @@ __sBox = [
 __roundCon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 
 __ivByteCount = 12
-__stringEncoding = 'ISO-8859-1'
-__numberEncoding = 'big'
 
 # string message, bytearray mainKey
 def Decipher (cipher, mainKey):
-    cipherText = bytearray(bytes(cipher, __stringEncoding))
+    cipherText = cvt.str_to_bytearray(cipher)
     iv = cipherText[0:__ivByteCount]
 
     cipherText = cipherText[__ivByteCount:]
@@ -36,12 +35,12 @@ def Decipher (cipher, mainKey):
     blockCount = math.ceil(cipherTextSize / 16)
 
     message = str()
-    for counter in range(blockCount):
-        nonce = GetNonce(int.from_bytes(iv, __numberEncoding), counter)
-        blockKey = CipherKey(mainKey, nonce)
+    for counter in range(1, blockCount+1):
+        nonce = GetNonce(cvt.bytearray_to_int(iv), counter)
+        blockKey = CipherBlock(nonce, mainKey)
 
         cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter)
-        message += bytes(XorBlock(cipherTextBlock, blockKey)).decode(__stringEncoding)
+        message += cvt.bytearray_to_str(XorBlock(cipherTextBlock, blockKey))
 
     return message
 
@@ -49,27 +48,32 @@ def Decipher (cipher, mainKey):
 def Cipher (message, mainKey):
     iv = bytearray(secrets.token_bytes(__ivByteCount))
 
-    plainText = bytearray(bytes(message, __stringEncoding))
+    plainText = cvt.str_to_bytearray(message)
     plainTextSize = len(plainText)
     blockCount = math.ceil(plainTextSize / 16)
 
+    ivInt = cvt.bytearray_to_int(iv)
+    blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
+
     cipher = str()
-    for counter in range(blockCount):
-        nonce = GetNonce(int.from_bytes(iv, __numberEncoding), counter)
-        blockKey = CipherKey(mainKey, nonce)
+    for counter in range(1, blockCount+1):
+        nonce = GetNonce(ivInt, counter)
+        blockKey = CipherBlock(nonce, mainKey)
 
         plainTextBlock = TextBlock(plainTextSize, plainText, counter)
-        cipher += bytes(XorBlock(plainTextBlock, blockKey)).decode(__stringEncoding)
+        cipher += cvt.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
     
-    cipherText = bytearray(bytes(cipher, __stringEncoding)) # para fazer o GCM
+    cipherText = cvt.str_to_bytearray(cipher)
+    hashkey = CipherBlock(bytearray(16), mainKey)
+    # authBlock = 
 
-    civ = bytes(iv).decode(__stringEncoding)
-    iv_cipher = civ + cipher
+    ivStr = cvt.bytearray_to_str(iv)
+    iv_cipher = ivStr + cipher
     return iv_cipher
 
 # int textSize, bytearray text, int counter
 def TextBlock (textSize, text, counter):
-    blockBegin = counter * 16
+    blockBegin = (counter - 1) * 16
     likelySize = blockBegin + 16
     blockEnd = likelySize if (likelySize < textSize) else textSize
     textBlock = text[blockBegin:blockEnd]
@@ -78,7 +82,7 @@ def TextBlock (textSize, text, counter):
 # int iv, int counter
 def GetNonce (iv, counter) :
     nonce = (iv << (16 - __ivByteCount)) | counter
-    return bytearray(nonce.to_bytes(16, __numberEncoding))
+    return cvt.int_to_bytearray(nonce, 16)
 
 # bytearray mainKey, list<bytearray> roundKey
 def KeyExpansion (mainKey, roundKeys):
@@ -101,8 +105,8 @@ def AddRoundKey (round, prevKey):
 
     return roundKey
 
-# bytearray mainKey, bytearray nonce
-def CipherKey (mainKey, nonce):
+# bytearray nonce, bytearray mainKey
+def CipherBlock (nonce, mainKey):
     state = bytearray(16)
     for i in range(16):
         state[i] = mainKey[i] ^ nonce[i]
@@ -113,10 +117,7 @@ def CipherKey (mainKey, nonce):
     KeyExpansion(mainKey, roundKeys)
 
     for i in range(9):
-        state = SubBytes(state)
-        state = ShiftRows(state)
-        state = MixCols(state)
-        # coisar(state) # problema no mixcols
+        state = MixCols(ShiftRows(SubBytes(state)))
         for j in range(16):
             state[j] ^= roundKeys[i][j]
 
@@ -147,10 +148,10 @@ def ShiftRows (state):
 def MixCols (state):
     mixTable = bytearray(16)
     for i in range(4):
-        mixTable[i] = GF.gmul(2, state[i], 8) ^ GF.gmul(3, state[i+4], 8) ^ state[i+8] ^ state[i+12]
-        mixTable[i+4] = state[i] ^ GF.gmul(2, state[i+4], 8) ^ GF.gmul(3, state[i+8], 8) ^ state[i+12]
-        mixTable[i+8] = state[i] ^ state[i+4] ^ GF.gmul(2, state[i+8], 8) ^ GF.gmul(3, state[i+12], 8)
-        mixTable[i+12] = GF.gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ GF.gmul(2, state[i+12], 8)
+        mixTable[i] = gf.gmul(2, state[i], 8) ^ gf.gmul(3, state[i+4], 8) ^ state[i+8] ^ state[i+12]
+        mixTable[i+4] = state[i] ^ gf.gmul(2, state[i+4], 8) ^ gf.gmul(3, state[i+8], 8) ^ state[i+12]
+        mixTable[i+8] = state[i] ^ state[i+4] ^ gf.gmul(2, state[i+8], 8) ^ gf.gmul(3, state[i+12], 8)
+        mixTable[i+12] = gf.gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gf.gmul(2, state[i+12], 8)
     return mixTable
 
 # string textBlock, bytearray blockKey
@@ -161,26 +162,7 @@ def XorBlock (textBlock, blockKey):
     return xorBlock
 
 # teste
-def coisar (coisa):
-    print(hex(coisa[0] ),hex(coisa[1] ),hex(coisa[2] ),hex(coisa[3]))
-    print(hex(coisa[4] ),hex(coisa[5] ),hex(coisa[6] ),hex(coisa[7]))
-    print(hex(coisa[8] ),hex(coisa[9] ),hex(coisa[10]),hex(coisa[11]))
-    print(hex(coisa[12]),hex(coisa[13]),hex(coisa[14]),hex(coisa[15]))
-    print()
-
-# cipherBlock = CipherBlock(bytearray([
-#     0x2b, 0x28, 0xab, 0x09,
-#     0x7e, 0xae, 0xf7, 0xcf,
-#     0x15, 0xd2, 0x15, 0x4f,
-#     0x16, 0xa6, 0x88, 0x3c
-# ]), bytearray([
-#     0x32, 0x88, 0x31, 0xe0,
-#     0x43, 0x5a, 0x31, 0x37,
-#     0xf6, 0x30, 0x98, 0x07,
-#     0xa8, 0x8d, 0xa2, 0x34
-# ]))
-
-# coisar(cipherBlock)
+authData = "Gabriel F., 27at2301"
 
 message = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
 
