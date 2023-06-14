@@ -22,66 +22,62 @@ __sBox = [
 
 __roundCon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 
-__blockByteCount = 16
 __ivByteCount = 12
-
 __stringEncoding = 'ISO-8859-1'
 __numberEncoding = 'big'
 
-# string message
-def Cipher (message):
-    mainKey = bytearray(secrets.token_bytes(16))
-    iv = bytearray(secrets.token_bytes(12))
+# string message, bytearray mainKey
+def Decipher (cipher, mainKey):
+    cipherText = bytearray(bytes(cipher, __stringEncoding))
+    iv = cipherText[0:__ivByteCount]
 
-    plainText = bytearray(bytes(message, __stringEncoding))
-    messageSize = len(plainText)
-    blockCount = math.ceil(messageSize/16)
+    cipherText = cipherText[__ivByteCount:]
+    cipherTextSize = len(cipherText)
+    blockCount = math.ceil(cipherTextSize / 16)
 
-    cipher = str()
-    keystreams = list() # remover
+    message = str()
     for counter in range(blockCount):
         nonce = GetNonce(int.from_bytes(iv, __numberEncoding), counter)
-        keystream = CipherKey(mainKey, nonce)
-        keystreams.append(keystream) # remover
-        
-        blockBegin = counter * 16
-        likelySize = blockBegin + 16
-        blockEnd = likelySize if (likelySize < messageSize) else messageSize
-        plainTextBlock = plainText[blockBegin:blockEnd]
-        
-        cipherBlock = bytearray(len(plainTextBlock))
-        for i in range(len(cipherBlock)):
-            cipherBlock[i] = plainTextBlock[i] ^ keystream[i]
-        cipher += bytes(cipherBlock).decode(__stringEncoding)
+        blockKey = CipherKey(mainKey, nonce)
 
-    print(len(cipher))
-    print(cipher)
-    print("---")
+        cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter)
+        message += bytes(XorBlock(cipherTextBlock, blockKey)).decode(__stringEncoding)
 
-    # teste de decifracao
-    cipherText = bytearray(bytes(cipher, __stringEncoding))
-    cipherSize = len(cipherText)
-    blockCount = math.ceil(cipherSize/16)
+    return message
 
-    text = str()
+# string message
+def Cipher (message, mainKey):
+    iv = bytearray(secrets.token_bytes(__ivByteCount))
+
+    plainText = bytearray(bytes(message, __stringEncoding))
+    plainTextSize = len(plainText)
+    blockCount = math.ceil(plainTextSize / 16)
+
+    cipher = str()
     for counter in range(blockCount):
-        blockBegin = counter * 16
-        likelySize = blockBegin + 16
-        blockEnd = likelySize if (likelySize < cipherSize) else cipherSize
-        cipherTextBlock = cipherText[blockBegin:blockEnd]
-        
-        decipherBlock = bytearray(len(cipherTextBlock))
-        for i in range(len(decipherBlock)):
-            decipherBlock[i] = cipherTextBlock[i] ^ keystreams[counter][i]
-        text += bytes(decipherBlock).decode(__stringEncoding)
+        nonce = GetNonce(int.from_bytes(iv, __numberEncoding), counter)
+        blockKey = CipherKey(mainKey, nonce)
+
+        plainTextBlock = TextBlock(plainTextSize, plainText, counter)
+        cipher += bytes(XorBlock(plainTextBlock, blockKey)).decode(__stringEncoding)
     
-    print(len(text))
-    print(text)
-    print("---")
+    cipherText = bytearray(bytes(cipher, __stringEncoding)) # para fazer o GCM
+
+    civ = bytes(iv).decode(__stringEncoding)
+    iv_cipher = civ + cipher
+    return iv_cipher
+
+# int textSize, bytearray text, int counter
+def TextBlock (textSize, text, counter):
+    blockBegin = counter * 16
+    likelySize = blockBegin + 16
+    blockEnd = likelySize if (likelySize < textSize) else textSize
+    textBlock = text[blockBegin:blockEnd]
+    return textBlock
 
 # int iv, int counter
 def GetNonce (iv, counter) :
-    nonce = (iv << (__blockByteCount - __ivByteCount)) | counter
+    nonce = (iv << (16 - __ivByteCount)) | counter
     return bytearray(nonce.to_bytes(16, __numberEncoding))
 
 # bytearray mainKey, list<bytearray> roundKey
@@ -157,6 +153,13 @@ def MixCols (state):
         mixTable[i+12] = GF.gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ GF.gmul(2, state[i+12], 8)
     return mixTable
 
+# string textBlock, bytearray blockKey
+def XorBlock (textBlock, blockKey):
+    xorBlock = bytearray(len(textBlock))
+    for i in range(len(xorBlock)):
+        xorBlock[i] = textBlock[i] ^ blockKey[i]
+    return xorBlock
+
 # teste
 def coisar (coisa):
     print(hex(coisa[0] ),hex(coisa[1] ),hex(coisa[2] ),hex(coisa[3]))
@@ -181,4 +184,10 @@ def coisar (coisa):
 
 message = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
 
-Cipher(message)
+mainKey = bytearray(secrets.token_bytes(16))
+
+cipher = Cipher(message, mainKey)
+print(cipher)
+
+decipher = Decipher(cipher, mainKey)
+print(decipher)
