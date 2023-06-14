@@ -14,6 +14,13 @@ vector<uint8_t> PseudoRandomBytes (int bytesCount) {
     return prn;
 }
 
+class GCM {
+    // private:
+
+    // static 
+    // how to do gmul 2^128?????????
+};
+
 class AES_CTR {
     private:
 
@@ -33,12 +40,12 @@ class AES_CTR {
 
     public:
 
-    static vector<uint8_t> GetIV (vector<uint8_t> nonce, uint64_t counter) {
+    static vector<uint8_t> GetNonce (vector<uint8_t> iv, uint64_t counter) {
         vector<uint8_t> counterBytes;
-        for (int i=0; i < 64; i=i+8)
+        for (int i=0; i < 32; i=i+8)
             counterBytes.insert(counterBytes.begin(), (counter >> i));
-        nonce.insert(nonce.end(), counterBytes.begin(), counterBytes.end());
-        return nonce;
+        iv.insert(iv.end(), counterBytes.begin(), counterBytes.end());
+        return iv;
     }
 
     static void KeySchedule (vector<uint8_t> mainKey, vector<uint8_t> roundKeys[]) {
@@ -62,10 +69,10 @@ class AES_CTR {
         return roundKey;
     }
 
-    static vector<uint8_t> GetCipherBlock (vector<uint8_t> mainKey, vector<uint8_t> blockIv) {
+    static vector<uint8_t> GetCipherBlock (vector<uint8_t> mainKey, vector<uint8_t> nonce) {
         vector<uint8_t> state;
-        for (int i=0; i < blockIv.size(); i++)
-            state.push_back(mainKey[i] ^ blockIv[i]);
+        for (int i=0; i < nonce.size(); i++)
+            state.push_back(mainKey[i] ^ nonce[i]);
 
         vector<uint8_t> roundKeys[10];
         KeySchedule(mainKey, roundKeys);
@@ -136,8 +143,8 @@ int main () {
     srand(time(NULL));
 
     vector<uint8_t> aeskey = PseudoRandomBytes(16);
-    vector<uint8_t> nonce = PseudoRandomBytes(8);
-    uint64_t counter = 0;
+    vector<uint8_t> ivonce = PseudoRandomBytes(12);
+    uint32_t counter = 0;
 
     // vector<uint8_t> roundKeys[10];
     // AES_CTR::KeySchedule({
@@ -175,3 +182,8 @@ int main () {
         } cout << endl;
     }
 }
+
+// 39 02 dc 19
+// 25 dc 11 6a
+// 84 09 85 0b
+// 1d fb 97 32
