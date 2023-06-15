@@ -25,15 +25,74 @@ __roundCon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 
 __ivByteCount = 12
 
-# string message, bytearray mainKey
-def Decipher (cipher, mainKey):
+# int ivInt, str authData, int textSize, int blockCount, str cipher, bytearray mainKey
+def GCM (ivInt, authData, textSize, blockCount, cipher, mainKey):
+    authDataText = cvt.str_to_bytearray(authData)
     cipherText = cvt.str_to_bytearray(cipher)
-    iv = cipherText[0:__ivByteCount]
+    hashkey = cvt.bytearray_to_int(CipherBlock(bytearray(16), mainKey))
 
-    cipherText = cipherText[__ivByteCount:]
+    # blockKey[0] and gmul(ad)
+    blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
+    tagInt = gf.gmul(cvt.bytearray_to_int(authDataText), hashkey, 128)
+    tagText = bytearray(16)
+
+    # gmul(cipherBlock[counter])
+    for counter in range(blockCount):
+        cipherTextBlock = TextBlock(textSize, cipherText, counter)
+        tagText = XorBlock(cipherTextBlock, cvt.int_to_bytearray(tagInt, 16))
+        tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
+
+    # gmul(adcSize)
+    adSize = cvt.bytearray_to_str(cvt.int_to_bytearray(len(authDataText), 16-__ivByteCount))
+    adcSize = (len(authDataText) << 8) | len(cipherText)
+    tagText = XorBlock(cvt.int_to_bytearray(tagInt, 16), cvt.int_to_bytearray(adcSize, 16))
+    
+    # tag
+    tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
+    tag = XorBlock(cvt.int_to_bytearray(tagInt, 16), blockKey_0)
+    return [adSize, tag]
+
+# string message, bytearray mainKey
+def Decipher (ivadctag, mainKey):
+    ivadctagText = cvt.str_to_bytearray(ivadctag)
+    byte_begin = 0
+    byte_end = __ivByteCount
+
+    # get iv
+    iv = ivadctagText[byte_begin:byte_end]
+    ivInt = cvt.bytearray_to_int(iv)
+    byte_begin = byte_end
+    byte_end += 16 - __ivByteCount
+
+    # get ad
+    adSize = cvt.bytearray_to_int(ivadctagText[byte_begin:byte_end])
+    byte_begin = byte_end
+    byte_end += adSize
+    authData = cvt.bytearray_to_str(ivadctagText[byte_begin:byte_end])
+
+    # get cipher
+    byte_begin = byte_end
+    byte_end = len(ivadctag) - 16
+    cipherText = ivadctagText[byte_begin:byte_end]
+    cipher = cvt.bytearray_to_str(cipherText)
+
+    # get tag
+    byte_begin = byte_end
+    byte_end += 16
+    tag = ivadctagText[byte_begin:byte_end]
+
+    # compute tag
     cipherTextSize = len(cipherText)
     blockCount = math.ceil(cipherTextSize / 16)
+    gcm = GCM(ivInt, authData, cipherTextSize, blockCount, cipher, mainKey)
+    computedTag = gcm[1]
 
+    # verify authenticity
+    if (computedTag != tag):
+        print("YOU DIED!")
+        return str()
+
+    # decipher
     message = str()
     for counter in range(1, blockCount+1):
         nonce = GetNonce(cvt.bytearray_to_int(iv), counter)
@@ -46,7 +105,6 @@ def Decipher (cipher, mainKey):
 
 # string message
 def Cipher (authData, message, mainKey):
-    # AES_CTR
     iv = bytearray(secrets.token_bytes(__ivByteCount))
     ivInt = cvt.bytearray_to_int(iv)
 
@@ -62,30 +120,9 @@ def Cipher (authData, message, mainKey):
         plainTextBlock = TextBlock(plainTextSize, plainText, counter-1)
         cipher += cvt.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
     
-    # GCM
-    authDataText = cvt.str_to_bytearray(authData)
-    cipherText = cvt.str_to_bytearray(cipher)
-    hashkey = cvt.bytearray_to_int(CipherBlock(bytearray(16), mainKey))
-
-    # blockKey[0] and gmul(AD)
-    blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
-    tagInt = gf.gmul(cvt.bytearray_to_int(authDataText), hashkey, 128)
-    tagText = bytearray(16)
-
-    # gmul(cipherBlock[counter])
-    for counter in range(blockCount):
-        cipherTextBlock = TextBlock(plainTextSize, cipherText, counter)
-        tagText = XorBlock(cipherTextBlock, cvt.int_to_bytearray(tagInt, 16))
-        tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
-
-    # gmul(adcSize)
-    adSize = cvt.bytearray_to_str(cvt.int_to_bytearray(len(authDataText), 16-__ivByteCount))
-    adcSize = (len(authDataText) << 8) | len(cipherText)
-    tagText = XorBlock(cvt.int_to_bytearray(tagInt, 16), cvt.int_to_bytearray(adcSize, 16))
-    
-    # tag
-    tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
-    tag = XorBlock(cvt.int_to_bytearray(tagInt, 16), blockKey_0)
+    gcm = GCM(ivInt, authData, len(cipher), blockCount, cipher, mainKey)
+    adSize = gcm[0]
+    tag = gcm[1]
 
     ivadctag = cvt.bytearray_to_str(iv) + adSize + authData + cipher + cvt.bytearray_to_str(tag)
     return ivadctag
@@ -181,14 +218,21 @@ def XorBlock (textBlock, blockKey):
     return xorBlock
 
 # teste
-authData = "Gabriel F., 27at2301"
+authDataT = "Gabriel F., 27at2301"
 
-message = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
+messageT = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
 
-mainKey = bytearray(secrets.token_bytes(16))
+mainKeyT = bytearray(secrets.token_bytes(16))
 
-cipher = Cipher(authData, message, mainKey)
-print(cipher)
+cipherT = Cipher(authDataT, messageT, mainKeyT)
+# print(cipherT)
 
-# decipher = Decipher(cipher, mainKey)
-# print(decipher)
+decipherT = Decipher(cipherT, mainKeyT)
+print(decipherT)
+
+cipherT = cvt.str_to_bytearray(cipherT)
+cipherT[400] = 0x78
+cipherT = cvt.bytearray_to_str(cipherT)
+
+decipherT = Decipher(cipherT, mainKeyT)
+print(decipherT)
