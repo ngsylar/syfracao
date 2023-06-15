@@ -39,41 +39,60 @@ def Decipher (cipher, mainKey):
         nonce = GetNonce(cvt.bytearray_to_int(iv), counter)
         blockKey = CipherBlock(nonce, mainKey)
 
-        cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter)
+        cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter-1)
         message += cvt.bytearray_to_str(XorBlock(cipherTextBlock, blockKey))
 
     return message
 
 # string message
-def Cipher (message, mainKey):
+def Cipher (authData, message, mainKey):
+    # AES_CTR
     iv = bytearray(secrets.token_bytes(__ivByteCount))
+    ivInt = cvt.bytearray_to_int(iv)
 
     plainText = cvt.str_to_bytearray(message)
     plainTextSize = len(plainText)
     blockCount = math.ceil(plainTextSize / 16)
-
-    ivInt = cvt.bytearray_to_int(iv)
-    blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
 
     cipher = str()
     for counter in range(1, blockCount+1):
         nonce = GetNonce(ivInt, counter)
         blockKey = CipherBlock(nonce, mainKey)
 
-        plainTextBlock = TextBlock(plainTextSize, plainText, counter)
+        plainTextBlock = TextBlock(plainTextSize, plainText, counter-1)
         cipher += cvt.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
     
+    # GCM
+    authDataText = cvt.str_to_bytearray(authData)
     cipherText = cvt.str_to_bytearray(cipher)
-    hashkey = CipherBlock(bytearray(16), mainKey)
-    # authBlock = 
+    hashkey = cvt.bytearray_to_int(CipherBlock(bytearray(16), mainKey))
 
-    ivStr = cvt.bytearray_to_str(iv)
-    iv_cipher = ivStr + cipher
-    return iv_cipher
+    # blockKey[0] and gmul(AD)
+    blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
+    tagInt = gf.gmul(cvt.bytearray_to_int(authDataText), hashkey, 128)
+    tagText = bytearray(16)
+
+    # gmul(cipherBlock[counter])
+    for counter in range(blockCount):
+        cipherTextBlock = TextBlock(plainTextSize, cipherText, counter)
+        tagText = XorBlock(cipherTextBlock, cvt.int_to_bytearray(tagInt, 16))
+        tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
+
+    # gmul(adcSize)
+    adSize = cvt.bytearray_to_str(cvt.int_to_bytearray(len(authDataText), 16-__ivByteCount))
+    adcSize = (len(authDataText) << 8) | len(cipherText)
+    tagText = XorBlock(cvt.int_to_bytearray(tagInt, 16), cvt.int_to_bytearray(adcSize, 16))
+    
+    # tag
+    tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
+    tag = XorBlock(cvt.int_to_bytearray(tagInt, 16), blockKey_0)
+
+    ivadctag = cvt.bytearray_to_str(iv) + adSize + authData + cipher + cvt.bytearray_to_str(tag)
+    return ivadctag
 
 # int textSize, bytearray text, int counter
 def TextBlock (textSize, text, counter):
-    blockBegin = (counter - 1) * 16
+    blockBegin = counter * 16
     likelySize = blockBegin + 16
     blockEnd = likelySize if (likelySize < textSize) else textSize
     textBlock = text[blockBegin:blockEnd]
@@ -168,8 +187,8 @@ message = "A \"Hello, World!\" program is generally a computer program that igno
 
 mainKey = bytearray(secrets.token_bytes(16))
 
-cipher = Cipher(message, mainKey)
+cipher = Cipher(authData, message, mainKey)
 print(cipher)
 
-decipher = Decipher(cipher, mainKey)
-print(decipher)
+# decipher = Decipher(cipher, mainKey)
+# print(decipher)

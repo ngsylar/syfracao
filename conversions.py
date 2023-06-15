@@ -7,8 +7,8 @@ def str_to_bytearray (strVar):
 def bytearray_to_str (arrayVar):
     return bytes(arrayVar).decode(__stringEncoding)
 
-def int_to_bytearray (intVar, arraySize):
-    return bytearray(intVar.to_bytes(arraySize, __numberEncoding))
+def int_to_bytearray (intVar, byteCount):
+    return bytearray(intVar.to_bytes(byteCount, __numberEncoding))
 
 def bytearray_to_int (arrayVar):
     return int.from_bytes(arrayVar, __numberEncoding)
