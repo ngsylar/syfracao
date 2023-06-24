@@ -1,4 +1,7 @@
 .vscode/
 *.code-workspace
+__pycache__/
+legacy/
+spike/
 *.o
 *.exe

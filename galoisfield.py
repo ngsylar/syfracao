@@ -16,25 +16,25 @@ IRRED_COEFF = [
     3,1,15,7,5,19,18,10,7,5,3,12,7,2,7,5,1,14,9,6,10,3,2,15,13,12,12,11,9,16,
     9,7,12,9,3,9,5,2,17,10,6,24,9,3,17,15,13,5,4,3,19,17,8,15,6,3,19,6,1]
 
-def getpoly(deg):
+def getpoly (deg):
     if deg & 7 != 0 or deg < 8 or deg > 1024: raise Exception('Not supported Degree')
-    x = deg / 8 - 1
+    x = (deg / 8) - 1
     x = int(x)
     return (1<<IRRED_COEFF[3*x]) + (1<<IRRED_COEFF[3*x + 1]) + (1<<IRRED_COEFF[3*x + 2]) + 1
 
-def gadd(a, b): # minus is the same
+def gadd (a, b): # minus is the same
     return a ^ b
 
-def gmul(a, b, deg=8):
+def gmul (a, b, deg=8):
     poly = getpoly(deg)
-    max_1 = (1<<deg) - 1
-    max_2 = 1<<(deg - 1)
+    max_1 = (1 << deg) - 1
+    max_2 = 1 << (deg - 1)
     z = 0
     if a & 1:
         r = b
     else:
         r = 0
-    for i in range(1,deg+1):
+    for i in range(1, deg+1):
         mark = b & max_2
         b = (b << 1) & max_1
         if mark: # Note: not really protected by timing attack. since...
@@ -49,20 +49,20 @@ def gmul(a, b, deg=8):
     return r
 
 # py2.7+. may need to change this.
-def nlen(n):
+def nlen (n):
     # alternate: len(bin(n))-2 for positive
     return n.bit_length()
 
-def ginv(x, deg=8):
+def ginv (x, deg=8):
     u = x
-    v = (1<<deg) + getpoly(deg)
+    v = (1 << deg) + getpoly(deg)
     x = 1
     y = 0
     while u:
         i = nlen(u) - nlen(v)
         if i < 0:
-            u,v = v,u
-            x,y = y,x
+            u, v = v, u
+            x, y = y, x
             i = -i
         u ^= (v << i)
         x ^= (y << i)

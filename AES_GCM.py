@@ -1,7 +1,7 @@
 import math
 import secrets
 import conversions as cvt
-import modarith as gf
+import galoisfield as gf
 
 __sBox = [
     [0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76],
@@ -216,6 +216,14 @@ def XorBlock (textBlock, blockKey):
     for i in range(len(xorBlock)):
         xorBlock[i] = textBlock[i] ^ blockKey[i]
     return xorBlock
+
+# bytearray byteBlock
+def PrintState (byteState):
+    print(hex(byteState[0] ),hex(byteState[1] ),hex(byteState[2] ),hex(byteState[3]))
+    print(hex(byteState[4] ),hex(byteState[5] ),hex(byteState[6] ),hex(byteState[7]))
+    print(hex(byteState[8] ),hex(byteState[9] ),hex(byteState[10]),hex(byteState[11]))
+    print(hex(byteState[12]),hex(byteState[13]),hex(byteState[14]),hex(byteState[15]))
+    print()
 
 # teste
 authDataT = "Gabriel F., 27at2301"
