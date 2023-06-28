@@ -22,10 +22,10 @@ __sBox = [
 
 __roundCon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 
-# __blockByteCount = 16
-__ivByteCount = 12
-__adSizeBlockCount = 16 - __ivByteCount
-__counterByteCount = 16 - __ivByteCount
+# BLOCK_BYTE_COUNT = 16
+IV_BYTE_COUNT = 12
+AD_SIZE_BLOCK_COUNT = 16 - IV_BYTE_COUNT
+COUNTER_BYTE_COUNT = 16 - IV_BYTE_COUNT
 
 def GCM (ivInt: int, authData: str, textSize: int, blockCount: int, cipher: str, mainKey: bytearray) -> tuple[str, bytearray]:
     authDataText = convert.str_to_bytearray(authData)
@@ -44,7 +44,7 @@ def GCM (ivInt: int, authData: str, textSize: int, blockCount: int, cipher: str,
         tagInt = gmul(convert.bytearray_to_int(tagText), hashkey, 128)
 
     # gmul(adcSize)
-    adSize = convert.int_to_bytestr(len(authDataText), __adSizeBlockCount)
+    adSize = convert.int_to_bytestr(len(authDataText), AD_SIZE_BLOCK_COUNT)
     adcSize = (len(authDataText) << 8) | len(cipherText)
     tagText = XorBlock(convert.int_to_bytearray(tagInt, 16), convert.int_to_bytearray(adcSize, 16))
 
@@ -56,13 +56,13 @@ def GCM (ivInt: int, authData: str, textSize: int, blockCount: int, cipher: str,
 def Decipher (ivadctag: str, mainKey: bytearray) -> str:
     ivadctagText = convert.str_to_bytearray(ivadctag)
     byte_begin = 0
-    byte_end = __ivByteCount
+    byte_end = IV_BYTE_COUNT
 
     # get iv
     iv = ivadctagText[byte_begin:byte_end]
     ivInt = convert.bytearray_to_int(iv)
     byte_begin = byte_end
-    byte_end += __adSizeBlockCount
+    byte_end += AD_SIZE_BLOCK_COUNT
 
     # get ad
     adSize = convert.bytearray_to_int(ivadctagText[byte_begin:byte_end])
@@ -88,7 +88,7 @@ def Decipher (ivadctag: str, mainKey: bytearray) -> str:
 
     # verify authenticity
     if (computedTag != tag):
-        print("YOU DIED!")
+        print("GCM Tag Error: message is corrupted")
         return str()
 
     # decipher
@@ -103,7 +103,7 @@ def Decipher (ivadctag: str, mainKey: bytearray) -> str:
     return message
 
 def Cipher (authData: str, message: str, mainKey: bytearray) -> str:
-    iv = random.bytearray_with_byte_count(__ivByteCount)
+    iv = random.bytearray_with_byte_count(IV_BYTE_COUNT)
     ivInt = convert.bytearray_to_int(iv)
 
     plainText = convert.str_to_bytearray(message)
@@ -131,7 +131,7 @@ def TextBlock (textSize: int, text: bytearray, counter: int) -> bytearray:
     return textBlock
 
 def GetNonce (iv: int, counter: int) -> bytearray:
-    nonce = (iv << __counterByteCount) | counter
+    nonce = (iv << COUNTER_BYTE_COUNT) | counter
     return convert.int_to_bytearray(nonce, 16)
 
 def KeyExpansion (mainKey: bytearray, roundKeys: list):
@@ -198,11 +198,11 @@ def MixCols (state: bytearray) -> bytearray:
         mixTable[i+12] = gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gmul(2, state[i+12], 8)
     return mixTable
 
-def XorBlock (textBlock: bytearray, blockKey: bytearray) -> bytearray:
-    xorBlock = bytearray(len(textBlock))
-    for i in range(len(xorBlock)):
-        xorBlock[i] = textBlock[i] ^ blockKey[i]
-    return xorBlock
+def XorBlock (dominantBlock: bytearray, recessiveBlock: bytearray) -> bytearray:
+    xoredBlock = bytearray(len(dominantBlock))
+    for i in range(len(xoredBlock)):
+        xoredBlock[i] = dominantBlock[i] ^ recessiveBlock[i]
+    return xoredBlock
 
 def PrintState (state: bytearray):
     print(hex(state[ 0]), hex(state[ 1]), hex(state[ 2]), hex(state[ 3]))
