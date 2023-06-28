@@ -1,6 +1,6 @@
 .vscode/
 *.code-workspace
-__pycache__/
+# __pycache__/
 legacy/
 spike/
 *.o

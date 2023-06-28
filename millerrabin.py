@@ -1,10 +1,11 @@
-import secrets
+from utilities import PseudoRandom as random
 
-# int n, int a
-def SingleTest (n, a):
+oddNumber_i = 0 # editar: remover esse contador e fazer threads para gerar p e q primos
+
+def TheoremTest (a: int, n: int) -> bool:
     # factorization
     exp = n - 1
-    while not (exp & 1):
+    while not (exp & 0b1):
         exp >>= 1
 
     # test for the last term
@@ -19,17 +20,21 @@ def SingleTest (n, a):
 
     return False
 
-# int n, int testCount
-def SeveralTests (n, testCount=40):
-    for _ in range(testCount):
-        a = secrets.randbelow(n-3) + 2 # [2, n-1)
-        if not SingleTest(n, a):
+def IsPrime (n: int, testCount: int=40) -> bool:
+    for i in range(testCount):
+        print("\rIndex " + str(oddNumber_i) + " Test " + str(i+1), end="")
+        a = random.int_in_range(2, n-1)
+        print("\r", end="")
+        if not TheoremTest(a, n):
             return False
     return True
 
-# int bitCount
-def GenPrime (bitCount):
+def GenPrime (bitCount: int, testCount: int=40) -> bool:
+    global oddNumber_i
+    oddNumber_i = 0
+
     while True:
-        prime = (secrets.randbits(bitCount - 1) << 1) | 0b1
-        if SeveralTests(prime):
-            return prime
+        oddNumber = (random.int_with_full_bit_count(bitCount-1) << 1) | 0b1
+        oddNumber_i += 1
+        if IsPrime(oddNumber, testCount):
+            return oddNumber

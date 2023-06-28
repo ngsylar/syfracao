@@ -1,7 +1,6 @@
 import math
-import secrets
-import conversions as cvt
-import galoisfield as gf
+from modarith import gmul
+from utilities import Conversions as convert, PseudoRandom as random
 
 __sBox = [
     [0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76],
@@ -23,58 +22,59 @@ __sBox = [
 
 __roundCon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
 
+# __blockByteCount = 16
 __ivByteCount = 12
+__adSizeBlockCount = 16 - __ivByteCount
+__counterByteCount = 16 - __ivByteCount
 
-# int ivInt, str authData, int textSize, int blockCount, str cipher, bytearray mainKey
-def GCM (ivInt, authData, textSize, blockCount, cipher, mainKey):
-    authDataText = cvt.str_to_bytearray(authData)
-    cipherText = cvt.str_to_bytearray(cipher)
-    hashkey = cvt.bytearray_to_int(CipherBlock(bytearray(16), mainKey))
+def GCM (ivInt: int, authData: str, textSize: int, blockCount: int, cipher: str, mainKey: bytearray) -> tuple[str, bytearray]:
+    authDataText = convert.str_to_bytearray(authData)
+    cipherText = convert.str_to_bytearray(cipher)
+    hashkey = convert.bytearray_to_int(CipherBlock(bytearray(16), mainKey))
 
     # blockKey[0] and gmul(ad)
     blockKey_0 = CipherBlock(GetNonce(ivInt, 0), mainKey)
-    tagInt = gf.gmul(cvt.bytearray_to_int(authDataText), hashkey, 128)
+    tagInt = gmul(convert.bytearray_to_int(authDataText), hashkey, 128)
     tagText = bytearray(16)
 
     # gmul(cipherBlock[counter])
     for counter in range(blockCount):
         cipherTextBlock = TextBlock(textSize, cipherText, counter)
-        tagText = XorBlock(cipherTextBlock, cvt.int_to_bytearray(tagInt, 16))
-        tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
+        tagText = XorBlock(cipherTextBlock, convert.int_to_bytearray(tagInt, 16))
+        tagInt = gmul(convert.bytearray_to_int(tagText), hashkey, 128)
 
     # gmul(adcSize)
-    adSize = cvt.bytearray_to_str(cvt.int_to_bytearray(len(authDataText), 16-__ivByteCount))
+    adSize = convert.int_to_bytestr(len(authDataText), __adSizeBlockCount)
     adcSize = (len(authDataText) << 8) | len(cipherText)
-    tagText = XorBlock(cvt.int_to_bytearray(tagInt, 16), cvt.int_to_bytearray(adcSize, 16))
-    
-    # tag
-    tagInt = gf.gmul(cvt.bytearray_to_int(tagText), hashkey, 128)
-    tag = XorBlock(cvt.int_to_bytearray(tagInt, 16), blockKey_0)
-    return [adSize, tag]
+    tagText = XorBlock(convert.int_to_bytearray(tagInt, 16), convert.int_to_bytearray(adcSize, 16))
 
-# string message, bytearray mainKey
-def Decipher (ivadctag, mainKey):
-    ivadctagText = cvt.str_to_bytearray(ivadctag)
+    # tag
+    tagInt = gmul(convert.bytearray_to_int(tagText), hashkey, 128)
+    tag = XorBlock(convert.int_to_bytearray(tagInt, 16), blockKey_0)
+    return (adSize, tag)
+
+def Decipher (ivadctag: str, mainKey: bytearray) -> str:
+    ivadctagText = convert.str_to_bytearray(ivadctag)
     byte_begin = 0
     byte_end = __ivByteCount
 
     # get iv
     iv = ivadctagText[byte_begin:byte_end]
-    ivInt = cvt.bytearray_to_int(iv)
+    ivInt = convert.bytearray_to_int(iv)
     byte_begin = byte_end
-    byte_end += 16 - __ivByteCount
+    byte_end += __adSizeBlockCount
 
     # get ad
-    adSize = cvt.bytearray_to_int(ivadctagText[byte_begin:byte_end])
+    adSize = convert.bytearray_to_int(ivadctagText[byte_begin:byte_end])
     byte_begin = byte_end
     byte_end += adSize
-    authData = cvt.bytearray_to_str(ivadctagText[byte_begin:byte_end])
+    authData = convert.bytearray_to_str(ivadctagText[byte_begin:byte_end])
 
     # get cipher
     byte_begin = byte_end
     byte_end = len(ivadctag) - 16
     cipherText = ivadctagText[byte_begin:byte_end]
-    cipher = cvt.bytearray_to_str(cipherText)
+    cipher = convert.bytearray_to_str(cipherText)
 
     # get tag
     byte_begin = byte_end
@@ -84,8 +84,7 @@ def Decipher (ivadctag, mainKey):
     # compute tag
     cipherTextSize = len(cipherText)
     blockCount = math.ceil(cipherTextSize / 16)
-    gcm = GCM(ivInt, authData, cipherTextSize, blockCount, cipher, mainKey)
-    computedTag = gcm[1]
+    (_, computedTag) = GCM(ivInt, authData, cipherTextSize, blockCount, cipher, mainKey)
 
     # verify authenticity
     if (computedTag != tag):
@@ -95,20 +94,19 @@ def Decipher (ivadctag, mainKey):
     # decipher
     message = str()
     for counter in range(1, blockCount+1):
-        nonce = GetNonce(cvt.bytearray_to_int(iv), counter)
+        nonce = GetNonce(convert.bytearray_to_int(iv), counter)
         blockKey = CipherBlock(nonce, mainKey)
 
         cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter-1)
-        message += cvt.bytearray_to_str(XorBlock(cipherTextBlock, blockKey))
+        message += convert.bytearray_to_str(XorBlock(cipherTextBlock, blockKey))
 
     return message
 
-# string message
-def Cipher (authData, message, mainKey):
-    iv = bytearray(secrets.token_bytes(__ivByteCount))
-    ivInt = cvt.bytearray_to_int(iv)
+def Cipher (authData: str, message: str, mainKey: bytearray) -> str:
+    iv = random.bytearray_with_byte_count(__ivByteCount)
+    ivInt = convert.bytearray_to_int(iv)
 
-    plainText = cvt.str_to_bytearray(message)
+    plainText = convert.str_to_bytearray(message)
     plainTextSize = len(plainText)
     blockCount = math.ceil(plainTextSize / 16)
 
@@ -118,36 +116,30 @@ def Cipher (authData, message, mainKey):
         blockKey = CipherBlock(nonce, mainKey)
 
         plainTextBlock = TextBlock(plainTextSize, plainText, counter-1)
-        cipher += cvt.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
+        cipher += convert.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
     
-    gcm = GCM(ivInt, authData, len(cipher), blockCount, cipher, mainKey)
-    adSize = gcm[0]
-    tag = gcm[1]
+    (adSize, tag) = GCM(ivInt, authData, len(cipher), blockCount, cipher, mainKey)
 
-    ivadctag = cvt.bytearray_to_str(iv) + adSize + authData + cipher + cvt.bytearray_to_str(tag)
+    ivadctag = convert.bytearray_to_str(iv) + adSize + authData + cipher + convert.bytearray_to_str(tag)
     return ivadctag
 
-# int textSize, bytearray text, int counter
-def TextBlock (textSize, text, counter):
+def TextBlock (textSize: int, text: bytearray, counter: int) -> bytearray:
     blockBegin = counter * 16
     likelySize = blockBegin + 16
     blockEnd = likelySize if (likelySize < textSize) else textSize
     textBlock = text[blockBegin:blockEnd]
     return textBlock
 
-# int iv, int counter
-def GetNonce (iv, counter) :
-    nonce = (iv << (16 - __ivByteCount)) | counter
-    return cvt.int_to_bytearray(nonce, 16)
+def GetNonce (iv: int, counter: int) -> bytearray:
+    nonce = (iv << __counterByteCount) | counter
+    return convert.int_to_bytearray(nonce, 16)
 
-# bytearray mainKey, list<bytearray> roundKey
-def KeyExpansion (mainKey, roundKeys):
+def KeyExpansion (mainKey: bytearray, roundKeys: list):
     roundKeys[0] = AddRoundKey(0, mainKey)
     for i in range(1, 10):
         roundKeys[i] = AddRoundKey(i, roundKeys[i-1])
 
-# int round, bytearray prevKey
-def AddRoundKey (round, prevKey):
+def AddRoundKey (round: int, prevKey: bytearray) -> bytearray:
     rotWord = [prevKey[7], prevKey[11], prevKey[15], prevKey[3]]
     subBytes = SubBytes(rotWord)
     roundKey = bytearray(16)
@@ -161,8 +153,7 @@ def AddRoundKey (round, prevKey):
 
     return roundKey
 
-# bytearray nonce, bytearray mainKey
-def CipherBlock (nonce, mainKey):
+def CipherBlock (nonce: bytearray, mainKey: bytearray) -> bytearray:
     state = bytearray(16)
     for i in range(16):
         state[i] = mainKey[i] ^ nonce[i]
@@ -183,46 +174,41 @@ def CipherBlock (nonce, mainKey):
 
     return state
 
-# bytearray state
-def SubBytes (state):
+def SubBytes (state: bytearray) -> bytearray:
     for i in range(len(state)):
         row = state[i] >> 4
         col = state[i] & 0x0f
         state[i] = __sBox[row][col]
     return state
 
-# bytearray state
-def ShiftRows (state):
-    state = [
+def ShiftRows (state: bytearray) -> bytearray:
+    state = bytearray([
         state[0], state[1], state[2], state[3],
         state[5], state[6], state[7], state[4],
         state[10], state[11], state[8], state[9],
-        state[15], state[12], state[13], state[14]]
+        state[15], state[12], state[13], state[14]])
     return state
 
-# bytearray state
-def MixCols (state):
+def MixCols (state: bytearray) -> bytearray:
     mixTable = bytearray(16)
     for i in range(4):
-        mixTable[i] = gf.gmul(2, state[i], 8) ^ gf.gmul(3, state[i+4], 8) ^ state[i+8] ^ state[i+12]
-        mixTable[i+4] = state[i] ^ gf.gmul(2, state[i+4], 8) ^ gf.gmul(3, state[i+8], 8) ^ state[i+12]
-        mixTable[i+8] = state[i] ^ state[i+4] ^ gf.gmul(2, state[i+8], 8) ^ gf.gmul(3, state[i+12], 8)
-        mixTable[i+12] = gf.gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gf.gmul(2, state[i+12], 8)
+        mixTable[i] = gmul(2, state[i], 8) ^ gmul(3, state[i+4], 8) ^ state[i+8] ^ state[i+12]
+        mixTable[i+4] = state[i] ^ gmul(2, state[i+4], 8) ^ gmul(3, state[i+8], 8) ^ state[i+12]
+        mixTable[i+8] = state[i] ^ state[i+4] ^ gmul(2, state[i+8], 8) ^ gmul(3, state[i+12], 8)
+        mixTable[i+12] = gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gmul(2, state[i+12], 8)
     return mixTable
 
-# string textBlock, bytearray blockKey
-def XorBlock (textBlock, blockKey):
+def XorBlock (textBlock: bytearray, blockKey: bytearray) -> bytearray:
     xorBlock = bytearray(len(textBlock))
     for i in range(len(xorBlock)):
         xorBlock[i] = textBlock[i] ^ blockKey[i]
     return xorBlock
 
-# bytearray byteBlock
-def PrintState (byteState):
-    print(hex(byteState[0] ),hex(byteState[1] ),hex(byteState[2] ),hex(byteState[3]))
-    print(hex(byteState[4] ),hex(byteState[5] ),hex(byteState[6] ),hex(byteState[7]))
-    print(hex(byteState[8] ),hex(byteState[9] ),hex(byteState[10]),hex(byteState[11]))
-    print(hex(byteState[12]),hex(byteState[13]),hex(byteState[14]),hex(byteState[15]))
+def PrintState (state: bytearray):
+    print(hex(state[ 0]), hex(state[ 1]), hex(state[ 2]), hex(state[ 3]))
+    print(hex(state[ 4]), hex(state[ 5]), hex(state[ 6]), hex(state[ 7]))
+    print(hex(state[ 8]), hex(state[ 9]), hex(state[10]), hex(state[11]))
+    print(hex(state[12]), hex(state[13]), hex(state[14]), hex(state[15]))
     print()
 
 # teste
@@ -230,17 +216,20 @@ authDataT = "Gabriel F., 27at2301"
 
 messageT = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
 
-mainKeyT = bytearray(secrets.token_bytes(16))
+mainKeyT = random.bytearray_with_byte_count(16)
 
+# teste de crifacao e decifracao AES
 cipherT = Cipher(authDataT, messageT, mainKeyT)
-# print(cipherT)
-
+print("\nCipher Text using AES:\n\n" + cipherT + "\n")
 decipherT = Decipher(cipherT, mainKeyT)
-print(decipherT)
+print("Deciphered Text using AES:\n\n" + decipherT + "\n")
 
-cipherT = cvt.str_to_bytearray(cipherT)
-cipherT[400] = 0x78
-cipherT = cvt.bytearray_to_str(cipherT)
-
-decipherT = Decipher(cipherT, mainKeyT)
-print(decipherT)
+# teste de flip para um bit com GCM
+cipherT = convert.str_to_bytearray(cipherT)
+ctRandomByte = random.int_in_range(0, len(cipherT))
+ctrbRandomBit = random.int_in_range(0, 8)
+cipherT[ctRandomByte] ^= (0b00000001 << ctrbRandomBit)
+flippedBit_i = str((ctRandomByte * 8) + ctrbRandomBit)
+print("Decryption Attempt with one with bit "+flippedBit_i+" flipped:")
+decipherT = Decipher(convert.bytearray_to_str(cipherT), mainKeyT)
+print("\n" + decipherT + "\n")

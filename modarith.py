@@ -1,7 +1,3 @@
-# GPLv2+, by fcicq
-# from https://gist.github.com/fcicq/4352289
-# reference http://www.hpl.hp.com/techreports/98/HPL-98-135.pdf
-
 IRRED_COEFF = [
     4,3,1,5,3,1,4,3,1,7,3,2,5,4,3,5,3,2,7,4,2,4,3,1,10,9,3,9,4,2,7,6,2,10,9,
     6,4,3,1,5,4,3,4,3,1,7,2,1,5,3,2,7,4,2,6,3,2,5,3,2,15,3,2,11,3,2,9,8,7,7,
