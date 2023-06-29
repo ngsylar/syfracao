@@ -24,6 +24,9 @@ class Conversions:
     def str_to_bytes (value: str) -> bytes:
         return bytes(value, EncodingType.string)
 
+    def str_to_int (value: str) -> int:
+        return int.from_bytes(bytes(value, EncodingType.string), EncodingType.integer)
+
     def int_to_bytearray (value: int, byteCount: int=0) -> bytearray:
         return bytearray(Conversions.int_to_bytes(value, byteCount))
 
