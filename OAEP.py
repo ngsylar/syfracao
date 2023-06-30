@@ -16,7 +16,7 @@ def MGF1 (seed: bytearray, length: int, hash_func=hashlib.sha3_256) -> bytearray
         counter += 1
     return bytearray(T[:length])
 
-def PadMessage (publicKey: tuple[int, int], messsage: bytearray, label: bytearray=bytearray()) -> bytearray:
+def Pad (publicKey: tuple[int, int], messsage: bytearray, label: bytearray=bytearray()) -> bytearray:
     (modulus, _) = publicKey
     labelHash = bytearray(hashlib.sha3_256(bytes(label)).digest())
 
@@ -37,7 +37,7 @@ def PadMessage (publicKey: tuple[int, int], messsage: bytearray, label: bytearra
     paddedMsg = bytearray(b'\x00') + maskedSeed + maskedDB
     return paddedMsg
 
-def UnpadMessage (paddedMsg: bytearray, label: bytearray=bytearray()) -> bytearray:
+def Unpad (paddedMsg: bytearray, label: bytearray=bytearray()) -> bytearray:
     if (paddedMsg[0] != 0x00):
         print("OAEP Error: first byte is non-zero")
         return bytearray(0)
@@ -73,21 +73,3 @@ def XorBlock (dominantBlock: bytearray, recessiveBlock: bytearray) -> bytearray:
     for i in range(len(xoredBlock)):
         xoredBlock[i] = dominantBlock[i] ^ recessiveBlock[i]
     return xoredBlock
-
-# # teste
-# import millerrabin
-# E_DEF = 65537
-
-# labelT = "Gabriel F., 27at2301"
-# messageT = "A Hello, World! program is generally a computer program that ignores any input, and outputs or displays a message similar to Hello, World!"
-
-# p = millerrabin.GenPrime(1024)
-# q = millerrabin.GenPrime(1024)
-# n = p * q
-
-# senderT = PadMessage((n, E_DEF), convert.str_to_bytearray(messageT), convert.str_to_bytearray(labelT))
-# # senderT[6] ^= 0b00001000
-# receiverT = UnpadMessage(senderT, convert.str_to_bytearray(labelT))
-
-# print(convert.bytearray_to_str(receiverT))
-# print(bytearray())
