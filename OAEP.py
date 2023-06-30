@@ -1,5 +1,9 @@
 import hashlib
 from utilities import Qualities as quality, Conversions as convert, PseudoRandom as random
+from byteblock import *
+
+BYTE_ZERO = bytearray(b'\x00')
+BYTE_ONE = bytearray(b'\x01')
 
 HASH_BYTE_COUNT = 32
 
@@ -16,9 +20,12 @@ def MGF1 (seed: bytearray, length: int, hash_func=hashlib.sha3_256) -> bytearray
         counter += 1
     return bytearray(T[:length])
 
-def Pad (publicKey: tuple[int, int], messsage: bytearray, label: bytearray=bytearray()) -> bytearray:
+def GenerateHash (label: str) -> bytearray:
+    return bytearray(hashlib.sha3_256(convert.str_to_bytes(label)).digest())
+
+def Pad (publicKey: tuple[int, int], messsage: str, label: str="") -> bytearray:
     (modulus, _) = publicKey
-    labelHash = bytearray(hashlib.sha3_256(bytes(label)).digest())
+    labelHash = GenerateHash(label)
 
     msgByteCount = len(messsage)
     modulusByteCount = quality.count_bytes_of_int(modulus)
@@ -28,48 +35,39 @@ def Pad (publicKey: tuple[int, int], messsage: bytearray, label: bytearray=bytea
     
     paddingZeros = bytearray(modulusByteCount - msgByteCount - 2*HASH_BYTE_COUNT - 2)
     seed = random.bytearray_with_byte_count(HASH_BYTE_COUNT)
-    dataBlock = labelHash + paddingZeros + bytearray(b'\x01') + messsage
+    dataBlock = labelHash + paddingZeros + BYTE_ONE + convert.str_to_bytearray(messsage)
     dbByteCount = len(dataBlock)
 
-    maskedDB = XorBlock(dataBlock, MGF1(seed, dbByteCount))
-    maskedSeed = XorBlock(seed, MGF1(maskedDB, HASH_BYTE_COUNT))
+    maskedDB = XorBlocks(dataBlock, MGF1(seed, dbByteCount))
+    maskedSeed = XorBlocks(seed, MGF1(maskedDB, HASH_BYTE_COUNT))
+    paddedMsg = BYTE_ZERO + maskedSeed + maskedDB
 
-    paddedMsg = bytearray(b'\x00') + maskedSeed + maskedDB
     return paddedMsg
 
-def Unpad (paddedMsg: bytearray, label: bytearray=bytearray()) -> bytearray:
+def Unpad (paddedMsg: bytearray, label: str="") -> str:
     if (paddedMsg[0] != 0x00):
-        print("OAEP Error: first byte is non-zero")
-        return bytearray(0)
-    
+        raise ValueError("OAEP Error: first byte is non-zero")
+
     byte_i = HASH_BYTE_COUNT + 1
     maskedSeed = paddedMsg[1:byte_i]
     maskedDB = paddedMsg[byte_i:]
     dbByteCount = len(maskedDB)
 
-    labelHash = bytearray(hashlib.sha3_256(bytes(label)).digest())
-    computedSeed = XorBlock(maskedSeed, MGF1(maskedDB, HASH_BYTE_COUNT))
-    computedDB = XorBlock(maskedDB, MGF1(computedSeed, dbByteCount))
+    labelHash = GenerateHash(label)
+    computedSeed = XorBlocks(maskedSeed, MGF1(maskedDB, HASH_BYTE_COUNT))
+    computedDB = XorBlocks(maskedDB, MGF1(computedSeed, dbByteCount))
 
     byte_i = HASH_BYTE_COUNT
     computedHash = computedDB[:byte_i]
-
     if (computedHash != labelHash):
-        print("OAEP Error: calculated hash does not match")
-        return bytearray(0)
+        raise ValueError("OAEP Error: calculated hash does not match")
 
     while computedDB[byte_i] != 0x01:
         if computedDB[byte_i] != 0x00:
-            print("OAEP Error: padding string is corrupted")
-            return bytearray(0)
+            raise ValueError("OAEP Error: padding string is corrupted")
         byte_i += 1
     byte_i += 1
 
     unpaddedMsg = computedDB[byte_i:]
-    return unpaddedMsg
-
-def XorBlock (dominantBlock: bytearray, recessiveBlock: bytearray) -> bytearray:
-    xoredBlock = bytearray(len(dominantBlock))
-    for i in range(len(xoredBlock)):
-        xoredBlock[i] = dominantBlock[i] ^ recessiveBlock[i]
-    return xoredBlock
+    message = convert.bytearray_to_str(unpaddedMsg)
+    return message

@@ -1,6 +1,7 @@
 import math
 from modarith import gmul
 from utilities import Conversions as convert, PseudoRandom as random
+from byteblock import *
 
 __sBox = [
     [0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76],
@@ -39,46 +40,41 @@ def GCM (ivInt: int, authData: str, textSize: int, blockCount: int, cipher: str,
 
     # gmul(cipherBlock[counter])
     for counter in range(blockCount):
-        cipherTextBlock = TextBlock(textSize, cipherText, counter)
-        tagText = XorBlock(cipherTextBlock, convert.int_to_bytearray(tagInt, 16))
+        cipherTextBlock = GetBlock16(textSize, cipherText, counter)
+        tagText = XorBlocks(cipherTextBlock, convert.int_to_bytearray(tagInt, 16))
         tagInt = gmul(convert.bytearray_to_int(tagText), hashkey, 128)
 
     # gmul(adcSize)
     adSize = convert.int_to_bytestr(len(authDataText), AD_SIZE_BLOCK_COUNT)
     adcSize = (len(authDataText) << 8) | len(cipherText)
-    tagText = XorBlock(convert.int_to_bytearray(tagInt, 16), convert.int_to_bytearray(adcSize, 16))
+    tagText = XorBlocks(convert.int_to_bytearray(tagInt, 16), convert.int_to_bytearray(adcSize, 16))
 
     # tag
     tagInt = gmul(convert.bytearray_to_int(tagText), hashkey, 128)
-    tag = XorBlock(convert.int_to_bytearray(tagInt, 16), blockKey_0)
+    tag = XorBlocks(convert.int_to_bytearray(tagInt, 16), blockKey_0)
     return (adSize, tag)
 
 def Decipher (ivadctag: str, mainKey: bytearray) -> str:
     ivadctagText = convert.str_to_bytearray(ivadctag)
-    byte_begin = 0
-    byte_end = IV_BYTE_COUNT
+    byte_begin, byte_end = 0, IV_BYTE_COUNT
 
     # get iv
     iv = ivadctagText[byte_begin:byte_end]
     ivInt = convert.bytearray_to_int(iv)
-    byte_begin = byte_end
-    byte_end += AD_SIZE_BLOCK_COUNT
+    byte_begin, byte_end = byte_end, byte_end + AD_SIZE_BLOCK_COUNT
 
     # get ad
     adSize = convert.bytearray_to_int(ivadctagText[byte_begin:byte_end])
-    byte_begin = byte_end
-    byte_end += adSize
+    byte_begin, byte_end = byte_end, byte_end + adSize
     authData = convert.bytearray_to_str(ivadctagText[byte_begin:byte_end])
 
     # get cipher
-    byte_begin = byte_end
-    byte_end = len(ivadctag) - 16
+    byte_begin, byte_end = byte_end, len(ivadctag) - 16
     cipherText = ivadctagText[byte_begin:byte_end]
     cipher = convert.bytearray_to_str(cipherText)
 
     # get tag
-    byte_begin = byte_end
-    byte_end += 16
+    byte_begin, byte_end = byte_end, byte_end + 16
     tag = ivadctagText[byte_begin:byte_end]
 
     # compute tag
@@ -97,8 +93,8 @@ def Decipher (ivadctag: str, mainKey: bytearray) -> str:
         nonce = GetNonce(convert.bytearray_to_int(iv), counter)
         blockKey = CipherBlock(nonce, mainKey)
 
-        cipherTextBlock = TextBlock(cipherTextSize, cipherText, counter-1)
-        message += convert.bytearray_to_str(XorBlock(cipherTextBlock, blockKey))
+        cipherTextBlock = GetBlock16(cipherTextSize, cipherText, counter-1)
+        message += convert.bytearray_to_str(XorBlocks(cipherTextBlock, blockKey))
 
     return message
 
@@ -115,20 +111,13 @@ def Cipher (authData: str, message: str, mainKey: bytearray) -> str:
         nonce = GetNonce(ivInt, counter)
         blockKey = CipherBlock(nonce, mainKey)
 
-        plainTextBlock = TextBlock(plainTextSize, plainText, counter-1)
-        cipher += convert.bytearray_to_str(XorBlock(plainTextBlock, blockKey))
+        plainTextBlock = GetBlock16(plainTextSize, plainText, counter-1)
+        cipher += convert.bytearray_to_str(XorBlocks(plainTextBlock, blockKey))
     
     (adSize, tag) = GCM(ivInt, authData, len(cipher), blockCount, cipher, mainKey)
 
     ivadctag = convert.bytearray_to_str(iv) + adSize + authData + cipher + convert.bytearray_to_str(tag)
     return ivadctag
-
-def TextBlock (textSize: int, text: bytearray, counter: int) -> bytearray:
-    blockBegin = counter * 16
-    likelySize = blockBegin + 16
-    blockEnd = likelySize if (likelySize < textSize) else textSize
-    textBlock = text[blockBegin:blockEnd]
-    return textBlock
 
 def GetNonce (iv: int, counter: int) -> bytearray:
     nonce = (iv << COUNTER_BYTE_COUNT) | counter
@@ -197,19 +186,6 @@ def MixCols (state: bytearray) -> bytearray:
         mixTable[i+8] = state[i] ^ state[i+4] ^ gmul(2, state[i+8], 8) ^ gmul(3, state[i+12], 8)
         mixTable[i+12] = gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gmul(2, state[i+12], 8)
     return mixTable
-
-def XorBlock (dominantBlock: bytearray, recessiveBlock: bytearray) -> bytearray:
-    xoredBlock = bytearray(len(dominantBlock))
-    for i in range(len(xoredBlock)):
-        xoredBlock[i] = dominantBlock[i] ^ recessiveBlock[i]
-    return xoredBlock
-
-def PrintState (state: bytearray):
-    print(hex(state[ 0]), hex(state[ 1]), hex(state[ 2]), hex(state[ 3]))
-    print(hex(state[ 4]), hex(state[ 5]), hex(state[ 6]), hex(state[ 7]))
-    print(hex(state[ 8]), hex(state[ 9]), hex(state[10]), hex(state[11]))
-    print(hex(state[12]), hex(state[13]), hex(state[14]), hex(state[15]))
-    print()
 
 # teste
 authDataT = "Gabriel F., 27at2301"
