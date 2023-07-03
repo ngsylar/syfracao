@@ -15,6 +15,7 @@ def GenerateKeys (msgByteCount: int=0):
     primeBitCount = (keyBitCountMax + 1) // 2
     publicExp = PUBLIC_EXP_DEFAULT
 
+    # editar: usar threads
     primeP = millerrabin.GenPrime(primeBitCount)
     primeQ = millerrabin.GenPrime(primeBitCount)
 

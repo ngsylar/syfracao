@@ -1,6 +1,6 @@
 import hashlib
-from utilities import Qualities as quality, Conversions as convert, PseudoRandom as random
 from byteblock import *
+from utilities import Qualities as quality, Conversions as convert, PseudoRandom as random
 
 BYTE_ZERO = bytearray(b'\x00')
 BYTE_ONE = bytearray(b'\x01')

@@ -1,7 +1,7 @@
 import secrets
 
 class EncodingType:
-    string = 'ISO-8859-1'
+    symbols = 'ISO-8859-1'
     integer = 'big'
 
 class Qualities:
@@ -10,22 +10,22 @@ class Qualities:
 
 class Conversions:
     def bytearray_to_str (value: bytearray) -> str:
-        return bytes(value).decode(EncodingType.string)
+        return bytes(value).decode(EncodingType.symbols)
 
     def bytearray_to_int (value: bytearray) -> int:
         return int.from_bytes(value, EncodingType.integer)
 
     def bytes_to_str (value: bytes) -> str:
-        return value.decode(EncodingType.string)
+        return value.decode(EncodingType.symbols)
 
     def str_to_bytearray (value: str) -> bytearray:
-        return bytearray(bytes(value, EncodingType.string))
+        return bytearray(bytes(value, EncodingType.symbols))
     
     def str_to_bytes (value: str) -> bytes:
-        return bytes(value, EncodingType.string)
+        return bytes(value, EncodingType.symbols)
 
     def str_to_int (value: str) -> int:
-        return int.from_bytes(bytes(value, EncodingType.string), EncodingType.integer)
+        return int.from_bytes(bytes(value, EncodingType.symbols), EncodingType.integer)
 
     def int_to_bytearray (value: int, byteCount: int=0) -> bytearray:
         return bytearray(Conversions.int_to_bytes(value, byteCount))
@@ -36,7 +36,7 @@ class Conversions:
         return value.to_bytes(byteCount, EncodingType.integer)
 
     def int_to_bytestr (value: int, byteCount: int=0) -> str:
-        return Conversions.int_to_bytes(value, byteCount).decode(EncodingType.string)
+        return Conversions.int_to_bytes(value, byteCount).decode(EncodingType.symbols)
 
 class PseudoRandom:
     def bytearray_with_byte_count (byteCount: int) -> bytearray:
