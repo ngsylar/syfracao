@@ -6,3 +6,4 @@
 # [4] Miller-Rabin Primality Test: https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
 # [5] RSA, OAEP: https://www.rfc-editor.org/rfc/rfc8017
 # [6] Mask Generation Function: https://www.ietf.org/rfc/rfc2437.txt
+# [7] Base64: https://pt.wikipedia.org/wiki/Base64

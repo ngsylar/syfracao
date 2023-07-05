@@ -119,6 +119,9 @@ def Cipher (authData: str, message: str, mainKey: bytearray) -> str:
     ivadctag = convert.bytearray_to_str(iv) + adSize + authData + cipher + convert.bytearray_to_str(tag)
     return ivadctag
 
+def GenerateKey ():
+    return random.bytearray_with_byte_count(16)
+
 def GetNonce (iv: int, counter: int) -> bytearray:
     nonce = (iv << COUNTER_BYTE_COUNT) | counter
     return convert.int_to_bytearray(nonce, 16)
@@ -186,26 +189,3 @@ def MixCols (state: bytearray) -> bytearray:
         mixTable[i+8] = state[i] ^ state[i+4] ^ gmul(2, state[i+8], 8) ^ gmul(3, state[i+12], 8)
         mixTable[i+12] = gmul(3, state[i], 8) ^ state[i+4] ^ state[i+8] ^ gmul(2, state[i+12], 8)
     return mixTable
-
-# teste
-authDataT = "Gabriel F., 27at2301"
-
-messageT = "A \"Hello, World!\" program is generally a computer program that ignores any input, and outputs or displays a message similar to \"Hello, World!\". A small piece of code in most general-purpose programming languages, this program is used to illustrate a language's basic syntax. \"Hello, World!\" programs are often the first a student learns to write in a given language,[1] and they can also be used as a sanity check to ensure computer software intended to compile or run source code is correctly installed, and that its operator understands how to use it."
-
-mainKeyT = random.bytearray_with_byte_count(16)
-
-# teste de crifacao e decifracao AES
-cipherT = Cipher(authDataT, messageT, mainKeyT)
-print("\nCipher Text using AES:\n\n" + cipherT + "\n")
-decipherT = Decipher(cipherT, mainKeyT)
-print("Deciphered Text using AES:\n\n" + decipherT + "\n")
-
-# teste de flip para um bit com GCM
-cipherT = convert.str_to_bytearray(cipherT)
-ctRandomByte = random.int_in_range(0, len(cipherT))
-ctrbRandomBit = random.int_in_range(0, 8)
-cipherT[ctRandomByte] ^= (0b00000001 << ctrbRandomBit)
-flippedBit_i = str((ctRandomByte * 8) + ctrbRandomBit)
-print("Decryption Attempt with one with bit "+flippedBit_i+" flipped:")
-decipherT = Decipher(convert.bytearray_to_str(cipherT), mainKeyT)
-print("\n" + decipherT + "\n")

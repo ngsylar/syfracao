@@ -38,9 +38,9 @@ def Decode (codedMsg: str, dec: int=0) -> str:
     dec >>= suffixCount * 2
     return convert.int_to_bytestr(dec)
 
-messageT = "Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure."
+# messageT = "Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure."
 
-encT = Encode(messageT)
-decT = Decode(encT)
-print(encT)
-print(decT)
+# encT = Encode(messageT)
+# decT = Decode(encT)
+# print(encT)
+# print(decT)

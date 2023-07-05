@@ -3,5 +3,7 @@
 __pycache__/
 legacy/
 spike/
+*.txt
+*.k3y
 *.o
 *.exe

@@ -33,7 +33,7 @@ def GenerateKeys (msgByteCount: int=0):
 
     return (modulus, publicExp), privateExp
 
-def Cipher (publicKey: tuple[int, int], message: str, label: str) -> int:
+def Cipher (publicKey: tuple[int, int], message: str, label: str="") -> int:
     (modulus, publicExp) = publicKey
 
     paddedMsg = OAEP.Pad(publicKey, message, label)
@@ -42,7 +42,7 @@ def Cipher (publicKey: tuple[int, int], message: str, label: str) -> int:
 
     return cipher
 
-def Decipher (privateKey: int, publicKey: tuple[int, int], cipher: int, label: str) -> str:
+def Decipher (privateKey: int, publicKey: tuple[int, int], cipher: int, label: str="") -> str:
     (modulus, _) = publicKey
     privateExp = privateKey
 
@@ -51,13 +51,3 @@ def Decipher (privateKey: int, publicKey: tuple[int, int], cipher: int, label: s
     message = OAEP.Unpad(paddedMsg, label)
 
     return message
-
-# teste
-labelT = "Gabriel F., 27at2301"
-messageT = "A Hello, World! program is generally a computer program that ignores any input, and outputs or displays a message similar to Hello, World!"
-
-publicKey, privateKey = GenerateKeys(len(messageT))
-cipherT = Cipher(publicKey, messageT, labelT)
-decipherT = Decipher(privateKey, publicKey, cipherT, labelT)
-
-print(decipherT)

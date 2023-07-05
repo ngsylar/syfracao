@@ -45,7 +45,7 @@ def Pad (publicKey: tuple[int, int], messsage: str, label: str="") -> bytearray:
     return paddedMsg
 
 def Unpad (paddedMsg: bytearray, label: str="") -> str:
-    if (paddedMsg[0] != 0x00):
+    if paddedMsg[0] != 0x00:
         raise ValueError("OAEP Error: first byte is non-zero")
 
     byte_i = HASH_BYTE_COUNT + 1
