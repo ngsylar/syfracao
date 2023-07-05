@@ -1,8 +1,8 @@
-.vscode/
+*.vscode/
+*__pycache__/
+*legacy/
+*spike/
 *.code-workspace
-__pycache__/
-legacy/
-spike/
 *.txt
 *.k3y
 *.o
