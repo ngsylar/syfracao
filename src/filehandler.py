@@ -1,7 +1,8 @@
 import BASE64
 from utilities import Conversions as convert
 
-# editar: usar modos 'wb' e 'rb' e trocar entradas str() por bytes() para aceitar qualquer tipo de arquivo
+# editar: usar modos 'wb' e 'rb' e trocar entradas str() por bytes()
+# nota: avaliar leitura de qualquer tipo de arquivo com uso do BASE64
 
 FILE_WRITE = 'w'
 FILE_READ = 'r'

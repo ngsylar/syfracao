@@ -1,10 +1,14 @@
-*.vscode/
 *__pycache__/
 *legacy/
 *spike/
 *.code-workspace
-*.txt
 *.k3y
 *.o
 *.exe
 *.zip
+
+.vscode/
+readme.txt
+src/*.txt
+expansion/*.png
+expansion/*.txt

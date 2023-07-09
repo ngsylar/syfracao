@@ -1,4 +1,10 @@
-from utilities import Conversions as convert
+try:
+    from utilities import Conversions as convert
+except: # editar: usado em expansion.fileconverter, remover apos integracao
+    import sys
+    from os import path
+    sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+    from src.utilities import Conversions as convert
 
 __encTable = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
