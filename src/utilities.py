@@ -1,3 +1,4 @@
+import operator
 import secrets
 
 class EncodingType:
@@ -7,6 +8,9 @@ class EncodingType:
 class Qualities:
     def count_bytes_of_int (value: int) -> int:
         return ((value.bit_length() + 7) // 8)
+
+    def reversed_index_of (value: any, lst: list) -> int:
+        return len(lst) - operator.indexOf(reversed(lst), value) - 1
 
 class Conversions:
     def bytearray_to_str (value: bytearray) -> str:
