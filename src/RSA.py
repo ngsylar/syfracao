@@ -20,7 +20,7 @@ def GenerateKeys (msgByteCount: int=0) -> tuple[tuple[int, int], tuple[int, int]
     primeQ = millerrabin.GenPrime(primeBitCount)
 
     while primeP == primeQ:
-        primeQ = millerrabin.GenPrime(1024)
+        primeQ = millerrabin.GenPrime(primeBitCount)
     modulus = primeP * primeQ
 
     lambdaP = primeP - 1
