@@ -1,5 +1,5 @@
 try:
-    from utilities import Conversions as convert
+    from utilities import Conversion as convert
 except: # editar: usado em expansion.fileconverter, remover apos integracao
     import sys
     from os import path

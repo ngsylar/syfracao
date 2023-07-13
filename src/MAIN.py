@@ -1,8 +1,7 @@
-import hashlib
 import AES_GCM
 import RSA
 import filehandler as file
-from utilities import Qualities as quality, Conversions as convert
+from utilities import Quality as quality, Conversion as convert, Hash as makeHash
 
 __atil = convert.int_to_bytestr(195)
 __cced = convert.int_to_bytestr(199)
@@ -86,7 +85,7 @@ def opt5 ():
 
     authKey = list()
     cipherKeySize = len(cipherKey)
-    blockSize = quality.count_bytes_of_int(mySecretKey[0]) - 2*RSA.OAEP.HASH_BYTE_COUNT - 2
+    blockSize = quality.byte_count_of_int(mySecretKey[0]) - 2*RSA.OAEP.HASH_BYTE_COUNT - 2
 
     for i in range(0, cipherKeySize, blockSize):
         authKey.append(RSA.Cipher(mySecretKey, cipherKey[i:i+blockSize]))
@@ -107,7 +106,7 @@ def opt6 ():
     mySecretKey = file.readSecretKey(my_KeyName)
     myPublicKey = list(file.readPublicKey(my_KeyName))
 
-    hashCipher = hashlib.sha3_256(convert.str_to_bytes(cipher)).digest()
+    hashCipher = makeHash.SHA3_256(cipher)
     sign = RSA.Cipher(mySecretKey, convert.bytes_to_str(hashCipher))
     file.writeHybridCipher((cipher, [cipherKey, sign] + myPublicKey), fileName)
 
@@ -165,7 +164,7 @@ def opt11 ():
 
     symbols, integers = file.readHybridCipher(fileName)
     cipher, cipherKey, sign, otherPublicKey = symbols, integers[0], integers[1], (integers[2], integers[3])
-    hashCipher = hashlib.sha3_256(convert.str_to_bytes(cipher)).digest()
+    hashCipher = makeHash.SHA3_256(cipher)
     givenHash = RSA.Decipher(otherPublicKey, sign)
     
     if hashCipher != convert.str_to_bytes(givenHash):

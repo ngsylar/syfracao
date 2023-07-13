@@ -1,6 +1,6 @@
 import hashlib
 from byteblock import *
-from utilities import Qualities as quality, Conversions as convert, PseudoRandom as random
+from utilities import Quality as quality, Conversion as convert, PseudoRandom as random, Hash as makeHash
 
 BYTE_ZERO = bytearray(b'\x00')
 BYTE_ONE = bytearray(b'\x01')
@@ -20,40 +20,35 @@ def MGF1 (seed: bytearray, length: int, hash_func=hashlib.sha3_256) -> bytearray
         counter += 1
     return bytearray(T[:length])
 
-def GenerateHash (label: str) -> bytearray:
-    return bytearray(hashlib.sha3_256(convert.str_to_bytes(label)).digest())
-
-def Pad (publicKey: tuple[int, int], messsage: str, label: str="") -> bytearray:
-    (modulus, _) = publicKey
-    labelHash = GenerateHash(label)
-
+def Pad (keyModulus: int, messsage: str, label: str="") -> bytearray:
+    modulusByteCount = quality.byte_count_of_int(keyModulus)
     msgByteCount = len(messsage)
-    modulusByteCount = quality.count_bytes_of_int(modulus)
 
     if msgByteCount > (modulusByteCount - 2*HASH_BYTE_COUNT - 2):
         raise ValueError("OAEP Error: message to be padded must be at most (k-2*hLen-2) bytes")
     
+    labelHash = makeHash.SHA3_256(label)
     paddingZeros = bytearray(modulusByteCount - msgByteCount - 2*HASH_BYTE_COUNT - 2)
     seed = random.bytearray_with_byte_count(HASH_BYTE_COUNT)
     dataBlock = labelHash + paddingZeros + BYTE_ONE + convert.str_to_bytearray(messsage)
-    dbByteCount = len(dataBlock)
 
+    dbByteCount = len(dataBlock)
     maskedDB = XorBlocks(dataBlock, MGF1(seed, dbByteCount))
     maskedSeed = XorBlocks(seed, MGF1(maskedDB, HASH_BYTE_COUNT))
     paddedMsg = BYTE_ZERO + maskedSeed + maskedDB
 
     return paddedMsg
 
-def Unpad (paddedMsg: bytearray, label: str="") -> str:
-    if paddedMsg[0] != 0x00:
+def Unpad (keyModulus: int, paddedMsg: bytearray, label: str="") -> str:
+    if not (len(paddedMsg) < quality.byte_count_of_int(keyModulus)):
         raise ValueError("OAEP Error: first byte is non-zero")
 
-    byte_i = HASH_BYTE_COUNT + 1
-    maskedSeed = paddedMsg[1:byte_i]
+    byte_i = HASH_BYTE_COUNT
+    maskedSeed = paddedMsg[:byte_i]
     maskedDB = paddedMsg[byte_i:]
     dbByteCount = len(maskedDB)
 
-    labelHash = GenerateHash(label)
+    labelHash = makeHash.SHA3_256(label)
     computedSeed = XorBlocks(maskedSeed, MGF1(maskedDB, HASH_BYTE_COUNT))
     computedDB = XorBlocks(maskedDB, MGF1(computedSeed, dbByteCount))
 

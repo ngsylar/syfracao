@@ -1,7 +1,7 @@
 import math
 import millerrabin
 import OAEP
-from utilities import Conversions as convert, PseudoRandom as random
+from utilities import Conversion as convert, PseudoRandom as random
 
 PUBLIC_EXP_DEFAULT = 65537
 PRIME_BIT_COUNT_MIN = 1024
@@ -36,7 +36,7 @@ def GenerateKeys (msgByteCount: int=0) -> tuple[tuple[int, int], tuple[int, int]
 def Cipher (publicKey: tuple[int, int], message: str, label: str="") -> int:
     (modulus, publicExp) = publicKey
 
-    paddedMsg = OAEP.Pad(publicKey, message, label)
+    paddedMsg = OAEP.Pad(modulus, message, label)
     msgBase = convert.bytearray_to_int(paddedMsg)
     cipher = pow(msgBase, publicExp, modulus)
 
@@ -46,7 +46,7 @@ def Decipher (privateKey: tuple[int, int], cipher: int, label: str="") -> str:
     (modulus, privateExp) = privateKey
 
     decipher = pow(cipher, privateExp, modulus)
-    paddedMsg = bytearray(1) + convert.int_to_bytearray(decipher)
-    message = OAEP.Unpad(paddedMsg, label)
+    paddedMsg = convert.int_to_bytearray(decipher)
+    message = OAEP.Unpad(modulus, paddedMsg, label)
 
     return message
